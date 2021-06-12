@@ -1,129 +1,112 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Linq;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace KefirTest
 {
-    public class InventoryController : MonoBehaviour, IInventoryView
+    public class InventoryController : MonoBehaviour, IInventoryPresenter
     {
-        [SerializeField] private Transform _leftSideInventoryTransform;
-        [SerializeField] private Transform _rightSideInventoryTransform;
-        [SerializeField] private Button _moveButton;
-
-        [Space] [SerializeField] private Sprite _slotSprite;
-        [SerializeField] private Sprite _slotOverSprite;
-
-        [Space] [SerializeField] private int _leftSideMaxAmount = 10;
+        [SerializeField] private int _leftSideMaxAmount = 10;
         [SerializeField] private int _rightSideMaxAmount = 10;
 
-        private Transform[] _leftSideSlots;
-        private Transform[] _rightSideSlots;
-        private Image[] _leftSideSlotImages;
-        private Image[] _rightSideSlotImages;
-        private Image[] _leftSideSlotItemImages;
-        private Image[] _rightSideSlotItemImages;
+        [Space]
+        [SerializeField] private InventoryVisualController _visualController;
 
-        private Sprite[] _itemIcons;
+        private IInventoryView _view;
 
-        private int _leftAmount;
-        private int _rightAmount;
+        private string[] _itemNames;
 
-        private InventorySide _selectedItemInventorySide;
-        private int _selectedItemIndex = -1;
+        private InventoryModel _inventoryModel;
+
+        public void MoveAction(InventorySide side, int slot)
+        {
+            if (side == InventorySide.Left)
+            {
+                if (slot >= _inventoryModel.LeftSideItems.Length) return;
+                if (_inventoryModel.RightSideItems.Length == _rightSideMaxAmount) return;
+
+                string itemName = _inventoryModel.LeftSideItems[slot];
+                _inventoryModel.LeftSideItems = RemoveNameFromArray(_inventoryModel.LeftSideItems, slot);
+                _inventoryModel.RightSideItems = AddNameToArray(_inventoryModel.RightSideItems, itemName);
+            }
+            else
+            {
+                if (slot >= _inventoryModel.RightSideItems.Length) return;
+                if (_inventoryModel.LeftSideItems.Length == _leftSideMaxAmount) return;
+
+                string itemName = _inventoryModel.RightSideItems[slot];
+                _inventoryModel.RightSideItems = RemoveNameFromArray(_inventoryModel.RightSideItems, slot);
+                _inventoryModel.LeftSideItems = AddNameToArray(_inventoryModel.LeftSideItems, itemName);
+            }
+
+            DrawInventory();
+        }
+
+        private string[] RemoveNameFromArray(string[] arr, int index)
+        {
+            string[] newArr = new string[arr.Length - 1];
+
+            for (int i = 0; i < index; i++) newArr[i] = arr[i];
+            for (int i = index + 1; i < arr.Length; i++) newArr[i - 1] = arr[i];
+
+            return newArr;
+        }
+
+        private string[] AddNameToArray(string[] arr, string name)
+        {
+            string[] newArr = new string[arr.Length + 1];
+
+            for (int i = 0; i < arr.Length; i++) newArr[i] = arr[i];
+            newArr[arr.Length] = name;
+
+            return newArr;
+        }
 
         private void Awake()
         {
-            int leftCount = Mathf.Min(_leftSideInventoryTransform.childCount, _leftSideMaxAmount);
-            _leftSideSlots = new Transform[leftCount];
-            _leftSideSlotImages = new Image[leftCount];
-            _leftSideSlotItemImages = new Image[leftCount];
-            for (int i = 0; i < leftCount; i++)
-            {
-                _leftSideSlots[i] = _leftSideInventoryTransform.GetChild(i);
-                _leftSideSlotImages[i] = _leftSideSlots[i].GetComponent<Image>();
-                _leftSideSlotItemImages[i] = _leftSideSlots[i].GetChild(0).GetComponent<Image>();
+            _view = _visualController;
 
-                int slot = i;
-                _leftSideSlots[i].GetComponent<Button>().onClick.AddListener(() =>
-                {
-                    SelectItem(InventorySide.Left, slot);
-                });
-            }
+            _itemNames = Resources.LoadAll("Icons").Select(x => x.name).ToArray();
 
-            int rightCount = Mathf.Min(_rightSideInventoryTransform.childCount, _rightSideMaxAmount);
-            _rightSideSlots = new Transform[rightCount];
-            _rightSideSlotImages = new Image[rightCount];
-            _rightSideSlotItemImages = new Image[rightCount];
-            for (int i = 0; i < rightCount; i++)
-            {
-                _rightSideSlots[i] = _rightSideInventoryTransform.GetChild(i);
-                _rightSideSlotImages[i] = _rightSideSlots[i].GetComponent<Image>();
-                _rightSideSlotItemImages[i] = _rightSideSlots[i].GetChild(0).GetComponent<Image>();
+            _inventoryModel = new InventoryModel();
+        }
 
-                int slot = i;
-                _rightSideSlots[i].GetComponent<Button>().onClick.AddListener(() =>
-                {
-                    SelectItem(InventorySide.Right, slot);
-                });
-            }
+        public void Start()
+        {
+            // For testing, this all can be technically loaded from the model but that wasn't part of my task :D
+            int generatedLeftAmount = Random.Range(4, 8);
+            int generatedRightAmount = Random.Range(2, 4);
+            _inventoryModel.LeftSideItems = new string[generatedLeftAmount];
+            _inventoryModel.RightSideItems = new string[generatedRightAmount];
 
-            _itemIcons = Resources.LoadAll<Sprite>("Icons");
-
-            int generatedLeftAmount = _leftAmount = Random.Range(4, 8);
-            int generatedRightAmount = _rightAmount = Random.Range(2, 4);
             for (int i = 0; i < generatedLeftAmount; i++)
             {
-                _leftSideSlotItemImages[i].color = Color.white;
-                _leftSideSlotItemImages[i].sprite = _itemIcons[Random.Range(0, _itemIcons.Length)];
+                string itemName = _itemNames[Random.Range(0, _itemNames.Length)];
+                _inventoryModel.LeftSideItems[i] = itemName;
             }
 
             for (int i = 0; i < generatedRightAmount; i++)
             {
-                _rightSideSlotItemImages[i].color = Color.white;
-                _rightSideSlotItemImages[i].sprite = _itemIcons[Random.Range(0, _itemIcons.Length)];
+                string itemName = _itemNames[Random.Range(0, _itemNames.Length)];
+                _inventoryModel.RightSideItems[i] = itemName;
             }
+
+            DrawInventory();
         }
 
-        private void SelectItem(InventorySide side, int slot)
+        private void DrawInventory()
         {
-            Debug.Log(side.ToString() + ", " + slot);
+            _view.ClearSlots();
 
-            if (_selectedItemIndex == slot)
+            for (int i = 0; i < _inventoryModel.LeftSideItems.Length; i++)
             {
-                if (side == InventorySide.Left) _leftSideSlotImages[slot].sprite = _slotSprite;
-                else _rightSideSlotImages[slot].sprite = _slotSprite;
-
-                _selectedItemIndex = -1;
-
-                return;
+                _view.SetSlotInteractable(InventorySide.Left, i, true);
+                _view.SetSlotItemSprite(InventorySide.Left, i, _inventoryModel.LeftSideItems[i]);
             }
-
-            if (_selectedItemIndex != -1)
+            for (int i = 0; i < _inventoryModel.RightSideItems.Length; i++)
             {
-                if (side == InventorySide.Left) _leftSideSlotImages[_selectedItemIndex].sprite = _slotSprite;
-                else _rightSideSlotImages[_selectedItemIndex].sprite = _slotSprite;
+                _view.SetSlotInteractable(InventorySide.Right, i, true);
+                _view.SetSlotItemSprite(InventorySide.Right, i, _inventoryModel.RightSideItems[i]);
             }
-
-            if (side == InventorySide.Left) _leftSideSlotImages[slot].sprite = _slotOverSprite;
-            else _rightSideSlotImages[slot].sprite = _slotOverSprite;
-
-            _selectedItemIndex = slot;
         }
-
-        public void SwapSlots(int leftSlot, int rightSlots)
-        {
-            
-        }
-
-        public void SetSlotItemSprite(InventorySide side, int slot, Sprite sprite)
-        {
-            
-        }
-    }
-
-    public enum InventorySide
-    {
-        Left, Right
     }
 }

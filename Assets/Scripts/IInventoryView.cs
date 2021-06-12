@@ -4,7 +4,8 @@ namespace KefirTest
 {
     public interface IInventoryView
     {
-        void SwapSlots(int leftSlot, int rightSlot);
-        void SetSlotItemSprite(InventorySide side, int slot, Sprite sprite);
+        void SetSlotItemSprite(InventorySide side, int slot, string spriteName);
+        void SetSlotInteractable(InventorySide side, int slot, bool interactable);
+        void ClearSlots();
     }
 }
